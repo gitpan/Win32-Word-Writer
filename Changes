@@ -1,5 +1,55 @@
-Revision history for Win32-Word-Document-Writer
+Revision history for Win32-Word-Writer
 
-0.01    2005-03-29
-        First version, released on an unsuspecting world.
+CHANGES
+
+0.01 - 2005-03-29
+
+Save as HTML and other formats.
+
+
+Tests for WriteParagraph, NewParagraph
+
+
+SetStyle with character styles
+
+
+Italics and Bold
+
+
+Rename to Win32::Word::Writer
+
+
+Tests for lists
+
+
+Tests for tables
+
+
+Change from MakeMaker to Module::Build
+
+
+Various typos
+
+
+
+0.02 - 2005-04-04
+
+Add Changes section
+
+
+Replace \t with 4 spaces
+
+
+Bug: Empty line before first Heading if using NewParagraph instead of
+WriteParagraph. Fixed.
+
+
+
+
+TODO
+
+
+Tests for Tables of Contents etc
+
+Tests for Bookmarks
 

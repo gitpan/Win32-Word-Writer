@@ -92,6 +92,24 @@ SYNOPSIS
         #Save the document
         $oWriter->SaveAs("01example.doc");
 
+CONCEPTS
+    Win32::Word::Writer uses an OLE instance of Word to create Word
+    documents.
+
+    The documents are constructed in a linear fashion, i.e. you add text to
+    the document and generally don't move around the document a lot.
+
+  Styles
+    A "style" in Word is a set of properties that can be assigned to a piece
+    of text. There are two types of styles: Paragraph and Character styles.
+
+    "Normal", and "Heading 1" are example of paragraph styles.
+
+    When a paragraph gets applied to a piece of text it applies to the
+    entire paragraph, whereas the character style only affects the actual
+    chars. You can see the difference if you open a Word document and look
+    at the available styles.
+
 PROPERTIES
   oWord
     A Win32::OLE object with a Word Application instance.
@@ -363,8 +381,6 @@ KNOWN BUGS
     die().
 
 TODO
-    Tests for tables
-
     Tests for Tables of Contents etc
 
     Tests for Bookmarks
@@ -425,6 +441,9 @@ PRIVATE PROPERTIES
   hasWrittenParagraph
     Whether the writer has written a paragraph yet.
 
+  hasWrittenText
+    Whether the writer has written any text or paragraph yet.
+
   levelIndent
     The indentation level for bullet point lists.
 
@@ -448,11 +467,10 @@ AUTHOR
 
 BUGS
     Please report any bugs or feature requests to
-    "bug-win32-word-document-writer@rt.cpan.org", or through the web
-    interface at
-    <http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Win32-Word-Document-Writ
-    er>. I will be notified, and then you'll automatically be notified of
-    progress on your bug as I make changes.
+    "bug-win32-word-writer@rt.cpan.org", or through the web interface at
+    <http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Win32-Word--Writer>. I
+    will be notified, and then you'll automatically be notified of progress
+    on your bug as I make changes.
 
 ACKNOWLEDGEMENTS
 COPYRIGHT & LICENSE

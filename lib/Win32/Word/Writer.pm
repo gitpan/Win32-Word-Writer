@@ -101,11 +101,36 @@ still exposed for doing more fancy stuff.
     #Save the document
     $oWriter->SaveAs("01example.doc");
 
+
+
+=head1 CONCEPTS
+
+Win32::Word::Writer uses an OLE instance of Word to create Word
+documents.
+
+The documents are constructed in a linear fashion, i.e. you add text
+to the document and generally don't move around the document a lot.
+
+
+=head2 Styles
+
+A "style" in Word is a set of properties that can be assigned to a
+piece of text.  There are two types of styles: Paragraph and Character
+styles.
+
+"Normal", and "Heading 1" are example of paragraph styles.
+
+When a paragraph gets applied to a piece of text it applies to the
+entire paragraph, whereas the character style only affects the actual
+chars. You can see the difference if you open a Word document and look
+at the available styles.
+
+
 =cut
 
 package Win32::Word::Writer;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 
 
@@ -154,18 +179,21 @@ being created, or undef if not.
 
 
 =cut
-use Class::MethodMaker new_with_init => "new", get_set => [ qw(
-	oWord
-	oDocument
-	oSelection
-	hasWrittenParagraph
-	levelIndent
-	hasWrittenInIndent
-	oTable
-	rhConst
-	styleOld
-	fileTemp
-	)];
+use Class::MethodMaker new_with_init => "new", get_set =>
+        [ qw(
+             oWord
+             oDocument
+             oSelection
+             hasWrittenParagraph
+             hasWrittenText
+             levelIndent
+             hasWrittenInIndent
+             oTable
+             rhConst
+             styleOld
+             fileTemp
+         )
+      ];
 
 
 
@@ -192,24 +220,25 @@ Init the object. Called by new.
 =cut
 sub init {
     my $self = shift;         
-	my (%hParam) = @_;
+    my (%hParam) = @_;
 
-	$self->levelIndent(0);
-	$self->hasWrittenInIndent(0);
-	$self->hasWrittenParagraph(0);
-	$self->rhConst($rhConst);
-	$self->oWord( Win32::OLE->new('Word.Application'));
-	Win32::OLE->Option(Warn => 3);
+    $self->levelIndent(0);
+    $self->hasWrittenInIndent(0);
+    $self->hasWrittenParagraph(0);
+    $self->hasWrittenText(0);
+    $self->rhConst($rhConst);
+    $self->oWord( Win32::OLE->new('Word.Application'));
+    Win32::OLE->Option(Warn => 3);
 
-	$self->oDocument( $self->oWord->Documents->Add ) or die("Could not add Word document\n");
-	$self->oSelection( $self->oWord->Selection ) or die("Could not get Word selection\n");
-	$self->oTable(undef);
-	$self->styleOld("");
-	$self->fileTemp("");
+    $self->oDocument( $self->oWord->Documents->Add ) or die("Could not add Word document\n");
+    $self->oSelection( $self->oWord->Selection ) or die("Could not get Word selection\n");
+    $self->oTable(undef);
+    $self->styleOld("");
+    $self->fileTemp("");
 
-#	$self->oWord->{ScreenUpdating } = 0;		#Makes it faster. Visible = 0 would make it faster, but doesn't work for all operations. See also: http://word.mvps.org/FAQs/InterDev/MakeAppInvisible.htm
-	$self->oWord->{DisplayAlerts} = $rhConst->{wdAlertsNone};			#Suppress dialog boxes. Doesn't work that well though...
-	return;
+#    $self->oWord->{ScreenUpdating } = 0;        #Makes it faster. Visible = 0 would make it faster, but doesn't work for all operations. See also: http://word.mvps.org/FAQs/InterDev/MakeAppInvisible.htm
+    $self->oWord->{DisplayAlerts} = $rhConst->{wdAlertsNone};            #Suppress dialog boxes. Doesn't work that well though...
+    return;
 }
 
 
@@ -230,28 +259,28 @@ fails to load a document.
 =cut
 sub Open {
     my $self = shift;
-	my ($file) = @_;
+    my ($file) = @_;
 
-	$file = File::Spec->rel2abs($file);
-	-f $file or die("Could not open file: File ($file) does not exist\n");
-	-r $file or die("Could not open file: Can't read File ($file)\n");
+    $file = File::Spec->rel2abs($file);
+    -f $file or die("Could not open file: File ($file) does not exist\n");
+    -r $file or die("Could not open file: Can't read File ($file)\n");
 
-	$self->Close();
+    $self->Close();
 
-	my $oDocument = $self->oWord->Documents->Open({
-				FileName => $file,
-				ConfirmConversions => $self->rhConst->{False},		#Don't show dialog
-				Revert => 1,										#Discard changes
-				Visible => 0,										#No window
-				});
-	$oDocument->Select;				#Otherwise we have no selection
-	$self->oSelection( $self->oWord->Selection ) or die("Could not get Word selection\n");
+    my $oDocument = $self->oWord->Documents->Open({
+                FileName => $file,
+                ConfirmConversions => $self->rhConst->{False},        #Don't show dialog
+                Revert => 1,                                        #Discard changes
+                Visible => 0,                                        #No window
+                });
+    $oDocument->Select;                #Otherwise we have no selection
+    $self->oSelection( $self->oWord->Selection ) or die("Could not get Word selection\n");
 
-	$self->oDocument($oDocument);
+    $self->oDocument($oDocument);
 
-	$self->Checkpoint();			#Release locks on the template file, otherwise other Word instances may not be able to open it
+    $self->Checkpoint();            #Release locks on the template file, otherwise other Word instances may not be able to open it
 
-	return(1);
+    return(1);
 }
 
 
@@ -273,23 +302,23 @@ script can't re-create the file.)
 =cut
 sub SaveAs {
     my $self = shift;
-	my ($file, %hOpt) = @_;
+    my ($file, %hOpt) = @_;
     my $format = $hOpt{format} || "Document";
 
     defined(my $formatConst = $self->rhConst->{"wdFormat$format"}) or croak("Invalid format ($format), use Document, DOSText, DOSTextLineBreaks, EncodedText, HTML, RTF, Template, Text, TextLineBreaks, UnicodeText");
        
-	$file = File::Spec->rel2abs($file);
+    $file = File::Spec->rel2abs($file);
     
-	eval { $self->oDocument->SaveAs({ FileName => $file, FileFormat => $formatConst }) };
+    eval { $self->oDocument->SaveAs({ FileName => $file, FileFormat => $formatConst }) };
     if($@) {
-    	my $err = $@;
-    	if($err =~ /OLE exception from "Microsoft Word":\n\n(.+?)\nWin32::OLE/si) {
-    		die("Could not save file ($file): $1\n");
-    	}
-    	die($err);
+        my $err = $@;
+        if($err =~ /OLE exception from "Microsoft Word":\n\n(.+?)\nWin32::OLE/si) {
+            die("Could not save file ($file): $1\n");
+        }
+        die($err);
     }
 
-	return(1);
+    return(1);
 }
 
 
@@ -313,9 +342,9 @@ So you should call this after adding, say, 20K of text to the document
 sub Checkpoint {
     my $self = shift;
 
-	$self->SaveAs( $self->GetFileTemp );
+    $self->SaveAs( $self->GetFileTemp );
 
-	return(1);
+    return(1);
 }
 
 
@@ -334,13 +363,13 @@ created or opened.
 sub Close {
     my $self = shift;
 
-	$self->MarkDocumentAsSaved();
+    $self->MarkDocumentAsSaved();
 
-	$self->oSelection(undef);
-	$self->oDocument->Close({ SaveChanges => $self->rhConst->{wdDoNotSaveChanges} });
-	$self->oDocument(undef);
+    $self->oSelection(undef);
+    $self->oDocument->Close({ SaveChanges => $self->rhConst->{wdDoNotSaveChanges} });
+    $self->oDocument(undef);
 
-	return(1);
+    return(1);
 }
 
 
@@ -355,11 +384,12 @@ Append $text to the document (using the current style etc).
 =cut
 sub Write {
     my $self = shift;
-	my ($text) = @_;
+    my ($text) = @_;
 
-	$self->oSelection->TypeText($text);
+    $self->oSelection->TypeText($text);
+    $self->hasWrittenText(1);
 
-	return(1);
+    return(1);
 }
 
 
@@ -376,18 +406,18 @@ The default style is "Normal".
 =cut
 sub WriteParagraph {
     my $self = shift;
-	my ($text, %hOpt) = @_;
+    my ($text, %hOpt) = @_;
 
-	if($self->hasWrittenParagraph) {
+    if($self->hasWrittenParagraph) {
         $self->NewParagraph(%hOpt);
-	} else {
-		$self->SetStyle( $self->StyleSpec(%hOpt) );
-	}
+    } else {
+        $self->SetStyle( $self->StyleSpec(%hOpt) );
+    }
     
-	$self->hasWrittenParagraph(1);
-	$self->Write($text);
+    $self->hasWrittenParagraph(1);
+    $self->Write($text);
 
-	return(1);
+    return(1);
 }
 
 
@@ -406,12 +436,14 @@ sub NewParagraph {
     my $self = shift;
     my (%hOpt) = @_;
 
-	$self->oSelection->TypeParagraph();
-	$self->hasWrittenParagraph(1);
+    $self->hasWrittenText and $self->oSelection->TypeParagraph();
+
+    $self->hasWrittenText(1);
+    $self->hasWrittenParagraph(1);
 
     $self->SetStyle( $self->StyleSpec(%hOpt) );
 
-	return(1);
+    return(1);
 }
 
 
@@ -432,23 +464,23 @@ ClearCharacterFormatting().
 =cut
 sub SetStyle {
     my $self = shift;
-	my ($style) = @_;
-	$style ||= "Normal";
+    my ($style) = @_;
+    $style ||= "Normal";
 
-	return(1) if($style eq $self->styleOld);		#Workaround for bug in Word 2000/2002: http://support.microsoft.com/kb/292174
-	$self->styleOld($style);
+    return(1) if($style eq $self->styleOld);        #Workaround for bug in Word 2000/2002: http://support.microsoft.com/kb/292174
+    $self->styleOld($style);
 
-	local $SIG{__WARN__} = sub { die(@_) };
+    local $SIG{__WARN__} = sub { die(@_) };
     eval { $self->oSelection->{Style} = $style; };
     if($@) {
-    	my $err = $@;
-    	if($err =~ /OLE exception from "Microsoft Word":\n\n(.+?)\nWin32::OLE/si) {
-    		die("Could not set style ($style), it may not be defined in the document: $1\n");
-    	}
-    	die($err);
+        my $err = $@;
+        if($err =~ /OLE exception from "Microsoft Word":\n\n(.+?)\nWin32::OLE/si) {
+            die("Could not set style ($style), it may not be defined in the document: $1\n");
+        }
+        die($err);
     }
 
-	return(1);
+    return(1);
 }
 
 
@@ -467,9 +499,9 @@ formatting style.
 sub ClearCharacterFormatting {
     my $self = shift;
 
-	$self->SetStyle("Default Paragraph Font");		##Change for Word 2002 to "Clear Formatting", or does it work?
+    $self->SetStyle("Default Paragraph Font");        ##Change for Word 2002 to "Clear Formatting", or does it work?
 
-	return(1);
+    return(1);
 }
 
 
@@ -507,7 +539,7 @@ Toggle the current Bold charachter setting
 sub ToggleBold {
     my $self = shift;
 
-	$self->oSelection->Font->{Bold} = $rhConst->{wdToggle};
+    $self->oSelection->Font->{Bold} = $rhConst->{wdToggle};
 
     return($self->oSelection->Font->{Bold} ? 1 : 0);
 }
@@ -525,12 +557,12 @@ Return the new Bold state, or throw OLE exception.
 =cut
 sub SetBold {
     my $self = shift;
-	my ($enable) = @_;
-	$enable = $enable ? 1 : 0;
+    my ($enable) = @_;
+    $enable = $enable ? 1 : 0;
 
-	$self->oSelection->Font->{Bold} = $enable;
+    $self->oSelection->Font->{Bold} = $enable;
 
-	return($self->oSelection->Font->{Bold} ? 1 : 0);
+    return($self->oSelection->Font->{Bold} ? 1 : 0);
 }
 
 
@@ -545,7 +577,7 @@ Toggle the current Italic charachter setting
 sub ToggleItalic {
     my $self = shift;
 
-	$self->oSelection->Font->{Italic} = $rhConst->{wdToggle};
+    $self->oSelection->Font->{Italic} = $rhConst->{wdToggle};
 
     return($self->oSelection->Font->{Italic} ? 1 : 0);
 }
@@ -563,12 +595,12 @@ Return the new Italic state, or throw OLE exception.
 =cut
 sub SetItalic {
     my $self = shift;
-	my ($enable) = @_;
-	$enable = $enable ? 1 : 0;
+    my ($enable) = @_;
+    $enable = $enable ? 1 : 0;
 
-	$self->oSelection->Font->{Italic} = $enable;
+    $self->oSelection->Font->{Italic} = $enable;
 
-	return($self->oSelection->Font->{Italic} ? 1 : 0);
+    return($self->oSelection->Font->{Italic} ? 1 : 0);
 }
 
 
@@ -590,17 +622,17 @@ list.
 sub ListBegin {
     my $self = shift;
 
-	$self->oSelection->TypeParagraph();
-	if( ! $self->levelIndent) {		#Not yet started a list at all
-		$self->oSelection->Range->ListFormat->ApplyBulletDefault();
-	} else {
-		$self->oSelection->Range->ListFormat->ListIndent();
-	}
+    $self->oSelection->TypeParagraph();
+    if( ! $self->levelIndent) {        #Not yet started a list at all
+        $self->oSelection->Range->ListFormat->ApplyBulletDefault();
+    } else {
+        $self->oSelection->Range->ListFormat->ListIndent();
+    }
 
-	$self->levelIndent( $self->levelIndent + 1);
-	$self->hasWrittenInIndent(0);
+    $self->levelIndent( $self->levelIndent + 1);
+    $self->hasWrittenInIndent(0);
 
-	return(1);
+    return(1);
 }
 
 
@@ -621,13 +653,13 @@ Win32::Word::Writer and/or Word.
 sub ListItem {
     my $self = shift;
 
-	if($self->hasWrittenInIndent) {
-		$self->oSelection->TypeParagraph();
-	}
+    if($self->hasWrittenInIndent) {
+        $self->oSelection->TypeParagraph();
+    }
 
-	$self->hasWrittenInIndent(1);
+    $self->hasWrittenInIndent(1);
 
-	return(1);
+    return(1);
 }
 
 
@@ -645,21 +677,21 @@ If it's the outermost list, go back to normal text.
 sub ListEnd {
     my $self = shift;
 
-	$self->oSelection->TypeParagraph();
+    $self->oSelection->TypeParagraph();
 
-	if($self->levelIndent <= 1) {	#Is the first level
-		$self->oSelection->Range->ListFormat->RemoveNumbers();
-	} elsif($self->levelIndent <= 2) {	#Is the second level. This is just weird and I don't like to not understand why it works, but it does...
-		$self->oSelection->Range->ListFormat->RemoveNumbers();
-		$self->oSelection->Range->ListFormat->ApplyBulletDefault();
-	} else {
-		$self->oSelection->Range->ListFormat->ListOutdent();
-	}
+    if($self->levelIndent <= 1) {    #Is the first level
+        $self->oSelection->Range->ListFormat->RemoveNumbers();
+    } elsif($self->levelIndent <= 2) {    #Is the second level. This is just weird and I don't like to not understand why it works, but it does...
+        $self->oSelection->Range->ListFormat->RemoveNumbers();
+        $self->oSelection->Range->ListFormat->ApplyBulletDefault();
+    } else {
+        $self->oSelection->Range->ListFormat->ListOutdent();
+    }
 
-	$self->levelIndent( $self->levelIndent - 1);
-	$self->hasWrittenInIndent(0);
+    $self->levelIndent( $self->levelIndent - 1);
+    $self->hasWrittenInIndent(0);
 
-	return(1);
+    return(1);
 }
 
 
@@ -688,14 +720,14 @@ be thrown.
 sub TableBegin {
     my $self = shift;
 
-	$self->oTable and return(0);
+    $self->oTable and return(0);
 
-	my $oTable = Win32::Word::Writer::Table->new(oWriter => $self) or die("Could not create Table object\n");
-	$self->oTable($oTable);
-	$self->oTable->TableBegin();
-#	$self->oTable(undef);
+    my $oTable = Win32::Word::Writer::Table->new(oWriter => $self) or die("Could not create Table object\n");
+    $self->oTable($oTable);
+    $self->oTable->TableBegin();
+#    $self->oTable(undef);
 
-	return(1);
+    return(1);
 }
 
 
@@ -712,10 +744,10 @@ Add a column also before adding text to the table.
 sub TableRowBegin {
     my $self = shift;
 
-	$self->oTable or return(0);
-	$self->oTable->RowBegin();
+    $self->oTable or return(0);
+    $self->oTable->RowBegin();
 
-	return(1);
+    return(1);
 }
 
 
@@ -733,10 +765,10 @@ cell until a new row or column is created, or the table is ended.
 sub TableColumnBegin {
     my $self = shift;
 
-	$self->oTable or return(0);
-	$self->oTable->ColumnBegin();
+    $self->oTable or return(0);
+    $self->oTable->ColumnBegin();
 
-	return(1);
+    return(1);
 }
 
 
@@ -754,14 +786,14 @@ cell until a new row or column is created, or the table is ended.
 sub TableEnd {
     my $self = shift;
 
-	$self->oTable or return(0);
+    $self->oTable or return(0);
 
-	$self->oTable->TableEnd();
-	$self->oTable(undef);
+    $self->oTable->TableEnd();
+    $self->oTable(undef);
 
     $self->styleOld("Normal");  #We jump to the end of the document, so the style is currently Normal
 
-	return(1);
+    return(1);
 }
 
 
@@ -778,9 +810,9 @@ Set the insertion point at the end of the document.
 sub MoveToEnd {
     my $self = shift;
 
-	$self->oSelection->EndKey({ Unit => $self->rhConst->{wdStory}});
+    $self->oSelection->EndKey({ Unit => $self->rhConst->{wdStory}});
 
-	return(1);
+    return(1);
 }
 
 
@@ -797,9 +829,9 @@ Return 1 on success, else die.
 sub SelectAll {
     my $self = shift;
 
-	$self->oSelection->WholeStory();
+    $self->oSelection->WholeStory();
 
-	return(1);
+    return(1);
 }
 
 
@@ -822,18 +854,18 @@ Return 1 on success, else die.
 sub FieldsUpdate {
     my $self = shift;
 
-	$self->oDocument->Fields->Update() and die("Could not update all fields\n");
+    $self->oDocument->Fields->Update() and die("Could not update all fields\n");
 
-#	my $nameBookmark = "wordwriter" . int(rand(10000));
-#	$self->BookmarkAdd($nameBookmark);
-#	$self->SelectAll();
+#    my $nameBookmark = "wordwriter" . int(rand(10000));
+#    $self->BookmarkAdd($nameBookmark);
+#    $self->SelectAll();
 
-#	$self->oSelection->Fields->Update();
+#    $self->oSelection->Fields->Update();
 
-#	$self->BookmarkGoto($nameBookmark);
-#	$self->BookmarkDelete($nameBookmark);
+#    $self->BookmarkGoto($nameBookmark);
+#    $self->BookmarkDelete($nameBookmark);
 
-	return(1);
+    return(1);
 }
 
 
@@ -852,14 +884,14 @@ Return 1 on success, else die.
 sub ToCUpdate {
     my $self = shift;
 
-	my $count = 0;
-	for my $oToC ($self->oDocument->TablesOfContents->in()) {
-		$count++;
-		$oToC->Update() and die("Could not update entries of Table of Contents number ($count)\n");
-		$oToC->UpdatePageNumbers() and die("Could not update page numbers of Table of Contents number ($count)\n");
-	}
+    my $count = 0;
+    for my $oToC ($self->oDocument->TablesOfContents->in()) {
+        $count++;
+        $oToC->Update() and die("Could not update entries of Table of Contents number ($count)\n");
+        $oToC->UpdatePageNumbers() and die("Could not update page numbers of Table of Contents number ($count)\n");
+    }
 
-	return(1);
+    return(1);
 }
 
 
@@ -878,11 +910,11 @@ Return 1 on success, else die.
 =cut
 sub BookmarkAdd {
     my $self = shift;
-	my ($name) = @_;
+    my ($name) = @_;
 
-	$self->oDocument->Bookmarks->Add( { Name => $name } );
+    $self->oDocument->Bookmarks->Add( { Name => $name } );
 
-	return(1);
+    return(1);
 }
 
 
@@ -898,11 +930,11 @@ Return 1 on success, else die.
 =cut
 sub BookmarkGoto {
     my $self = shift;
-	my ($name) = @_;
+    my ($name) = @_;
 
-	$self->oSelection->GoTo( { What => $self->rhConst->{wdGoToBookmark}, Name => $name } );
+    $self->oSelection->GoTo( { What => $self->rhConst->{wdGoToBookmark}, Name => $name } );
 
-	return(1);
+    return(1);
 }
 
 
@@ -918,11 +950,11 @@ Return 1 on success, else die.
 =cut
 sub BookmarkDelete {
     my $self = shift;
-	my ($name) = @_;
+    my ($name) = @_;
 
-	$self->oDocument->Bookmarks($name)->Delete();
+    $self->oDocument->Bookmarks($name)->Delete();
 
-	return(1);
+    return(1);
 }
 
 
@@ -945,9 +977,9 @@ Return 1 on success, else die.
 sub MarkDocumentAsSaved {
     my $self = shift;
 
-	$self->oDocument->{Saved} = 1;
+    $self->oDocument->{Saved} = 1;
 
-	return(1);
+    return(1);
 }
 
 
@@ -962,9 +994,9 @@ Return a temporary file name in fileTemp().
 sub GetFileTemp {
     my $self = shift;
 
-	$self->fileTemp or $self->fileTemp( File::Temp::tmpnam() . "-wordwriter.doc" );		#Can't use the proper auto-unlink because that only works with the file handles
+    $self->fileTemp or $self->fileTemp( File::Temp::tmpnam() . "-wordwriter.doc" );        #Can't use the proper auto-unlink because that only works with the file handles
 
-	return($self->fileTemp);
+    return($self->fileTemp);
 }
 
 
@@ -978,25 +1010,31 @@ Release objects including the OLE Word object.
 =cut
 sub DESTROY {
     my $self = shift;
-	$self->oTable(undef);
+    $self->oTable(undef);
 
-	$self->oWord->{DisplayAlerts} = $rhConst->{wdAlertsNone};
-	$self->MarkDocumentAsSaved();		##workaround: wdAlertsNone doesn't work in Word2000 so we insist that the document is already saved to avoid the dialog box
+    $self->oWord->{DisplayAlerts} = $rhConst->{wdAlertsNone};
+    $self->MarkDocumentAsSaved();        ##workaround: wdAlertsNone doesn't work in Word2000 so we insist that the document is already saved to avoid the dialog box
 
-	$self->oWord->Quit();
-	$self->oWord(undef);		#This destroys the OLE object
+    $self->oWord->Quit();
+    $self->oWord(undef);        #This destroys the OLE object
 
-		#Save after quitting to keep Word from locking the file
-	if($self->fileTemp and -e $self->fileTemp) {
-		unlink($self->fileTemp) or ($^W and warn("Could not delete temp file (" . $self->fileTemp . "): $!\n"));
-	}
+    #Save after quitting to keep Word from locking the file
+    if($self->fileTemp and -e $self->fileTemp) {
+        unlink($self->fileTemp) or ($^W and warn("Could not delete temp file (" . $self->fileTemp . "): $!\n"));
+    }
 }
 
 
 
 
 
+1;
 
+
+
+
+
+__END__
 
 =head1 KNOWN BUGS
 
@@ -1052,8 +1090,6 @@ happens mostly when things die().
 
 
 =head1 TODO
-
-Tests for tables
 
 Tests for Tables of Contents etc
 
@@ -1138,6 +1174,11 @@ fiddle with them if you extend the module.
 Whether the writer has written a paragraph yet.
 
 
+=head2 hasWrittenText
+
+Whether the writer has written any text or paragraph yet.
+
+
 =head2 levelIndent
 
 The indentation level for bullet point lists.
@@ -1167,21 +1208,6 @@ The name of a temporary file.
 
 
 
-=cut
-
-
-
-
-
-1;
-
-
-
-
-
-__END__
-
-
 =head1 AUTHOR
 
 Johan Lindström, C<< <johanl[ÄT]DarSerMan.com> >>
@@ -1189,8 +1215,8 @@ Johan Lindström, C<< <johanl[ÄT]DarSerMan.com> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to
-C<bug-win32-word-document-writer@rt.cpan.org>, or through the web interface at
-L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Win32-Word-Document-Writer>.
+C<bug-win32-word-writer@rt.cpan.org>, or through the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Win32-Word--Writer>.
 I will be notified, and then you'll automatically be notified of progress on
 your bug as I make changes.
 

@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name: Win32-Word-Writer
-version: 0.01
+version: 0.02
 author: ~
 abstract: Create Microsoft Word documents
 license: perl
@@ -18,7 +18,7 @@ requires:
 provides:
   Win32::Word::Writer:
     file: lib/Win32/Word/Writer.pm
-    version: 0.01
+    version: 0.02
   Win32::Word::Writer::Table:
     file: lib/Win32/Word/Writer/Table.pm
     version: 0.01
