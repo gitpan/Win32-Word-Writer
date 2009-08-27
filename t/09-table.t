@@ -1,7 +1,7 @@
 #!perl -w
 use strict;
 
-use Test::More tests => 1044;
+use Test::More tests => 324;
 use Test::Exception;
 
 use lib ("lib", "../lib", "t", "../t");
@@ -126,8 +126,8 @@ is($oWriter->TableBegin(), 1, "TableBegin"); $tableCount++;
 for my $row (1..15) {
     is($oWriter->TableRowBegin(), 1, "TableBegin"); $rowCount++;
  
-    for my $col (1..20) {
-        is($oWriter->TableColumnBegin(), 1, "TableBegin"); $colCount++;
+    for my $col (1..4) {
+        is($oWriter->TableColumnBegin(), 1, "TableColumnBegin col ($col) "); $colCount++;
         push(@aText, { pre => ">", text => $text = "r$row, c$col text", post => "<"});
         is($oWriter->Write($text), 1, "Write");
     }

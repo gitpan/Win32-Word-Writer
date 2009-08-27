@@ -8,6 +8,7 @@ lib/Win32/Word/Writer/Table.pm
 Makefile.PL
 MANIFEST
 META.yml
+README
 t/00-load.t
 t/01-saveas.t
 t/02-write.t
@@ -15,12 +16,15 @@ t/03-open.t
 t/04-saveas_format.t
 t/05-stylespec.t
 t/05-writeparagraph.t
+t/05a-writeparagraph_beginning.t
 t/06-setstyle.t
 t/07-italic_bold.t
 t/08-list.t
 t/09-table.t
+t/10-picture.t
+t/data/lolbox.jpg
+t/data/lolcat.jpg
 t/data/open.doc
 t/pod-coverage.t
 t/pod.t
 t/WordTest.pm
-README

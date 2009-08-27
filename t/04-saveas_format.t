@@ -43,8 +43,9 @@ my $text3 = "Holy cow, it does!";
 is($oWriter->WriteParagraph($text3, heading => 1), 1, " add text");
 
 is($oWriter->SaveAs("03.rtf", format => "RTF"), 1, "SaveAs RTF file ok");
-like(WordTest::readFile("03.rtf"), qr|\{$text1\W+par|s, " found text in file");
-like(WordTest::readFile("03.rtf"), qr|\{$text3\W+par|s, " found second text in file");
+# Relaxed RTF identification since the format changes
+like(WordTest::readFile("03.rtf"), qr|$text1|s, " found text in file");
+like(WordTest::readFile("03.rtf"), qr|$text3|s, " found second text in file");
 
 
 

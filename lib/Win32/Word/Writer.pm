@@ -103,6 +103,22 @@ still exposed for doing more fancy stuff.
 
 
 
+=head1 INSTALLATION
+
+With L<Strawberry Perl|http://strawberryperl.com/>, the regular CPAN
+shell should work:
+
+  cpan Win32::Word::Writer
+
+All L<dependencies|Build.pm> except Microsoft Word itself should
+sort itself out automatically.
+
+This may work with ActiveState too if you have the MinGW compiler, or
+it might be easier to install with C<ppm> (if available, I'm not sure
+about the state of the PPM repos at this point).
+
+
+
 =head1 CONCEPTS
 
 Win32::Word::Writer uses an OLE instance of Word to create Word
@@ -130,7 +146,7 @@ at the available styles.
 
 package Win32::Word::Writer;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 
 
@@ -262,8 +278,8 @@ sub Open {
     my ($file) = @_;
 
     $file = File::Spec->rel2abs($file);
-    -f $file or die("Could not open file: File ($file) does not exist\n");
-    -r $file or die("Could not open file: Can't read File ($file)\n");
+    -f $file or croak("Could not open file: File ($file) does not exist");
+    -r $file or croak("Could not open file: Can't read File ($file)");
 
     $self->Close();
 
@@ -313,9 +329,9 @@ sub SaveAs {
     if($@) {
         my $err = $@;
         if($err =~ /OLE exception from "Microsoft Word":\n\n(.+?)\nWin32::OLE/si) {
-            die("Could not save file ($file): $1\n");
+            croak("Could not save file ($file): $1");
         }
-        die($err);
+        croak($err);
     }
 
     return(1);
@@ -854,7 +870,7 @@ Return 1 on success, else die.
 sub FieldsUpdate {
     my $self = shift;
 
-    $self->oDocument->Fields->Update() and die("Could not update all fields\n");
+    $self->oDocument->Fields->Update() and croak("Could not update all fields");
 
 #    my $nameBookmark = "wordwriter" . int(rand(10000));
 #    $self->BookmarkAdd($nameBookmark);
@@ -887,10 +903,45 @@ sub ToCUpdate {
     my $count = 0;
     for my $oToC ($self->oDocument->TablesOfContents->in()) {
         $count++;
-        $oToC->Update() and die("Could not update entries of Table of Contents number ($count)\n");
-        $oToC->UpdatePageNumbers() and die("Could not update page numbers of Table of Contents number ($count)\n");
+        $oToC->Update() and croak("Could not update entries of Table of Contents number ($count)");
+        $oToC->UpdatePageNumbers() and croak("Could not update page numbers of Table of Contents number ($count)");
     }
 
+    return(1);
+}
+
+
+
+
+
+=head1 METHODS - IMAGES
+
+=head2 InsertPicture($file, $embed = 0)
+
+Insert the picture $file at the current cursor location. $file must be
+one Word supports.
+
+If $embed is 1, the picture $file itself will be embedded inside the
+Word document. If $embed is 0, the picture is isn't embedded in the
+document, but linked to it.
+
+Return 1 on success, else die.
+
+=cut
+sub InsertPicture {
+    my $self = shift;
+    my ($file, $embed) = @_;
+    $embed ||= 0;
+
+    $file = File::Spec->rel2abs($file);
+    -f $file or croak("Could not open file: File ($file) does not exist");
+    -r $file or croak("Could not open file: Can't read File ($file)");
+
+    # LinkToFile, SaveWithDocument
+    my @aLinkSave = qw/ True False /;
+    $embed and @aLinkSave = qw/ False True /;
+    $self->oSelection->InlineShapes->AddPicture($file, @aLinkSave) or croak("Could not insert image object");
+    
     return(1);
 }
 
@@ -1053,8 +1104,23 @@ program to just freeze, waiting for user interaction. To
 boot, the dialog boxes are usually displayed below other
 applications.
 
-I blame Bill.
+I blame Bill's minions.
 
+
+=head2 Only four columns in tables
+
+It might be that your version of Word only supports four
+columns. Using Word 2003, adding a fifth column results in:
+
+  This exceeds the maximum width.
+
+This is described in
+L<http://support.microsoft.com/kb/253600/>. Unfortunately(?), this
+doesn't happen when I use Word interactively, only under OLE
+Automation. The suggestions in the KB article won't solve the problem.
+
+In Word 2000 this wasn't a problem. It may be fixed in later
+versions. Who knows?
 
 
 =head2 OLE errors during global destruction
@@ -1162,6 +1228,77 @@ If you need to add your own methods, I suggest you simply
 inject them in this namespace to get your application
 working and send me a patch.
 
+If you don't know how to create a patch file, just send me the code in
+an email, or the changed source file as an attachment.
+
+If you write something non-trivial, I'd like some tests to go with it
+too, thanks!
+
+
+=head1 FAQ
+
+Actual questions. Some of them even frequent.
+
+
+=head2 Do I need Windows to run Win32::Word::Writer or does it work on Linux?
+
+Yes, you do need Windows. Win32::Word::Writer is using the actual
+Microsoft Word program installed on your computer.
+
+
+=head2 Can Win32::Word::Writer do X?
+
+If you can't find it described in the docs, probaby not. But if you've
+seen it done in Word, it's clearly doable somehow (modulo Word bugs
+courtesy of MS).
+
+You can probably implement it yourself if you give it a try. Read the
+Win32::Word::Writer source for hints on how to accomplish things.
+
+
+=head2 Can you implement X for me?
+
+No, not really.
+
+I rarely touch this project nowadays, and I don't think I've actually
+used it after the initial thing I needed to write it for years ago.
+
+I'm happy that others find it useful though.
+
+If you find it so useful that you need it to do more things, I urge
+you to give it a shot at adding the functionality yourself.
+
+
+=head2 If so many people e-mail you to say they like Win32::Word::Writer, why are there no reviews?
+
+(okay, so this is my question)
+
+Maybe they don't know the link to the L<CPAN Reviews
+site|http://cpanratings.perl.org/rate/?distribution=Win32-Word-Writer>.
+
+
+=head1 AUTHOR
+
+Johan Lindström, C<< <johanl[ÄT]DarSerMan.com> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests to
+C<bug-win32-word-writer@rt.cpan.org>, or through the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Win32-Word-Writer>.
+I will be notified, and then you'll automatically be notified of progress on
+your bug as I make changes.
+
+=head1 ACKNOWLEDGEMENTS
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2009 Johan Lindström, All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+
 
 =head1 PRIVATE PROPERTIES
 
@@ -1206,27 +1343,5 @@ The previous style.
 
 The name of a temporary file.
 
-
-
-=head1 AUTHOR
-
-Johan Lindström, C<< <johanl[ÄT]DarSerMan.com> >>
-
-=head1 BUGS
-
-Please report any bugs or feature requests to
-C<bug-win32-word-writer@rt.cpan.org>, or through the web interface at
-L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Win32-Word--Writer>.
-I will be notified, and then you'll automatically be notified of progress on
-your bug as I make changes.
-
-=head1 ACKNOWLEDGEMENTS
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2005 Johan Lindström, All Rights Reserved.
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
 
 =cut
